@@ -1,0 +1,23 @@
+node_modules
+.next
+.git
+.env
+.env.*
+!.env.example
+pgdata
+coverage
+.DS_Store
+**/*.log
+
+# Personal financial data must never enter the build context (COPY . .).
+# Patterns here are root-anchored, hence the explicit **/ prefixes.
+db-dumps
+**/backup-*.sql
+**/*.sql
+!prisma/migrations/**/*.sql
+**/*-report.json
+**/*-report.md
+riseup-*-diff.*
+riseup-*-reconciliation.*
+data/riseup
+debug-screenshots

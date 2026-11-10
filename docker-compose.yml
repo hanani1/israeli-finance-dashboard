@@ -1,0 +1,75 @@
+services:
+  db:
+    image: postgres:16-alpine
+    # The Mac-host worker connects through localhost; keep PostgreSQL off the LAN.
+    ports:
+      - '127.0.0.1:5432:5432'
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-finance}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-finance}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-finance} -d ${POSTGRES_DB:-finance}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    build: .
+    # The publish is the app's ONLY access control (there is no auth layer).
+    # Default: this machine only. To reach it from your phone, set APP_BIND_IP
+    # in .env to this host's Tailscale IP (`tailscale ip -4`), never 0.0.0.0
+    # or a LAN address. Inside the container Next listens on 0.0.0.0 (Dockerfile
+    # HOSTNAME), which is fine because only this mapping publishes it.
+    ports:
+      - '${APP_BIND_IP:-127.0.0.1}:3002:3000'
+    env_file: .env
+    environment:
+      # Override the localhost URL from .env — inside compose the host is `db`.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-finance}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-finance}?schema=public
+      # Same zone as the host worker: scraped dates and ids depend on it (ADR-0020).
+      TZ: Asia/Jerusalem
+    depends_on:
+      db:
+        condition: service_healthy
+    # Apply migrations and (idempotent) seed data, then start the web server.
+    command: sh -c "npx prisma migrate deploy && npx prisma db seed && node server.js"
+    restart: unless-stopped
+
+  worker:
+    # Production scheduling runs from the Mac host so bank scrapers can use
+    # the host's real Chrome profile. Start this container explicitly only when
+    # a Docker-based worker is intentionally desired.
+    profiles: ['docker-worker']
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-finance}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-finance}?schema=public
+      # Same zone as the host worker: scraped dates and ids depend on it (ADR-0020).
+      TZ: Asia/Jerusalem
+      # Host Kiro CLI/auth are intentionally unavailable in the stock container.
+      KIRO_CATEGORIZATION_ENABLED: 'false'
+      LLM_CATEGORIZATION_ENABLED: 'false'
+    depends_on:
+      db:
+        condition: service_healthy
+    command: npm run worker
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+
+# ── Optional: keep the encryption key out of .env using compose secrets ──────
+# 1. Put the 64-char hex key in ./secrets/encryption_key (chmod 600, gitignored)
+# 2. Uncomment the block below and add to BOTH app and worker services:
+#      secrets: [encryption_key]
+#      environment:
+#        ENCRYPTION_KEY_FILE: /run/secrets/encryption_key
+# 3. Remove ENCRYPTION_KEY from .env
+#
+# secrets:
+#   encryption_key:
+#     file: ./secrets/encryption_key

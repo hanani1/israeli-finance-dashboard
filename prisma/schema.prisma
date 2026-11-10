@@ -1,0 +1,269 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum CategoryType {
+  INCOME
+  EXPENSE
+  // Money moved to/from investment houses — neither income nor expense.
+  INVESTMENT
+}
+
+// Finer grouping used by the RiseUp-style breakdown. VARIABLE_EXPENSE and
+// RECURRING_EXPENSE are both EXPENSE (type); INCOME mirrors type INCOME.
+// INVESTMENT mirrors type INVESTMENT and is excluded from every
+// income/expense aggregation (like isTransfer rows).
+enum CategoryGroup {
+  VARIABLE_EXPENSE
+  RECURRING_EXPENSE
+  INCOME
+  INVESTMENT
+}
+
+// What kind of account a provider represents. BANK accounts hold actual money
+// (their balance is "money in the bank"); CARD accounts are credit-card
+// providers whose spending is settled by a monthly debit on a bank account.
+enum AccountKind {
+  BANK
+  CARD
+}
+
+enum CategorizationSource {
+  UNASSIGNED
+  RULE
+  LLM
+  MANUAL
+}
+
+model User {
+  id              String           @id @default(uuid())
+  name            String
+  email           String           @unique
+  accounts        Account[]
+  bankCredentials BankCredential[]
+  createdAt       DateTime         @default(now())
+}
+
+model BankCredential {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  provider      String
+  encryptedData String // Base64 ciphertext
+  iv            String // Base64 96-bit IV
+  authTag       String // Base64 auth tag
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  initialSyncCompletedAt DateTime?
+
+  @@unique([userId, provider])
+}
+
+model Account {
+  id            String        @id
+  userId        String
+  user          User          @relation(fields: [userId], references: [id])
+  provider      String
+  kind          AccountKind   @default(BANK)
+  accountNumber String
+  displayName   String
+  // Money columns are DECIMAL (card #53, ADR-0027); see src/lib/services/money.ts.
+  balance       Decimal       @default(0) @db.Decimal(14, 2)
+  currency      String        @default("ILS")
+  transactions  Transaction[]
+  updatedAt     DateTime      @updatedAt
+}
+
+model Category {
+  id     Int                  @id @default(autoincrement())
+  name   String
+  type   CategoryType
+  group  CategoryGroup        @default(VARIABLE_EXPENSE)
+  color  String               @default("#888888")
+  rules  CategorizationRule[]
+  txns   Transaction[]
+  budget Budget?
+
+  // Names repeat across groups (e.g. ספורט is variable + recurring; דיור is a
+  // recurring expense and an income line), so uniqueness is per (name, group).
+  @@unique([name, group])
+}
+
+// Monthly spending target for a single category. Pacing (actual spend vs.
+// elapsed fraction of the month) is computed at read time in budgetService.
+model Budget {
+  id         Int      @id @default(autoincrement())
+  categoryId Int      @unique
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  amount     Decimal  @db.Decimal(14, 2) // positive monthly limit in ILS
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model CategorizationRule {
+  id         Int      @id @default(autoincrement())
+  pattern    String
+  categoryId Int
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  priority   Int      @default(1)
+  // When true the pattern also matches the transaction memo (bank transfer
+  // memos carry the destination, e.g. "העברה אל: אלטשולר שחם" while the
+  // description is a generic "העברה דיגיטל"). Opt-in so existing
+  // description-only rules keep their exact behavior.
+  matchMemo  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+
+model Transaction {
+  id                   String               @id
+  accountId            String
+  account              Account              @relation(fields: [accountId], references: [id])
+  txnIdentifier        String?
+  date                 DateTime
+  processedDate        DateTime?
+  // DECIMAL(14,2), Prisma.Decimal in code (card #53, ADR-0027).
+  chargedAmount        Decimal              @db.Decimal(14, 2)
+  // Settlement currency of chargedAmount — what actually left the account.
+  // Primary for display and the ONLY amounts that may be summed together
+  // (never mix currencies in one total).
+  chargedCurrency      String               @default("ILS")
+  // Merchant-side amount/currency for foreign purchases; secondary display
+  // context when originalCurrency differs from chargedCurrency.
+  // Scale 3: JOD/KWD/BHD/OMR/TND have three minor-unit digits (ADR-0027).
+  originalAmount       Decimal?             @db.Decimal(14, 3)
+  originalCurrency     String?              @default("ILS")
+  description          String
+  memo                 String?
+  rawCategory          String?
+  categoryId           Int?
+  category             Category?            @relation(fields: [categoryId], references: [id])
+  categorizationSource CategorizationSource @default(UNASSIGNED)
+  createdAt            DateTime             @default(now())
+
+  // Inter-account transfer tracking: money moved between the household's own
+  // accounts is neither income nor expense. isTransfer rows are excluded from
+  // all income/expense aggregations; transferPairId points at the counterpart
+  // transaction on the other account (both rows reference each other).
+  isTransfer     Boolean @default(false)
+  transferPairId String?
+
+  // Card settlement / revision handling. A bank-side monthly card debit whose
+  // cycle is fully covered by scraped card-account rows would double-count the
+  // household's spending, so it is marked isCardSettlement=true (with
+  // settlesAccountId pointing at the covered card account). Obsolete repeated
+  // pending settlement snapshots (the bank re-reports an upcoming card charge
+  // with a revised amount on every scrape, each getting a new deterministic
+  // id) are also marked isCardSettlement=true with settlesAccountId=null,
+  // leaving only the latest snapshot countable. Marked rows are excluded from
+  // analytics, budgets, and normal transaction views but remain in the raw DB.
+  isCardSettlement Boolean @default(false)
+  settlesAccountId String?
+
+  // RiseUp-style cash-flow month ("שייך לתזרים חודש", yyyy-MM). Backfilled
+  // from the RiseUp export by scripts/backfill-flow-month.ts; null means the
+  // flow month is unknown and the calendar month of `date` is the effective
+  // flow month (see flowMonth.ts helpers).
+  flowMonth String?
+
+  // Free-text note the user attaches to a transaction. User-owned: never
+  // touched by ingestion (see scrapedTransactionWrite.ts).
+  note String?
+
+  // Semantic refund flag (card #60, ADR-0024). Some providers report a refund
+  // or partial reversal with the SAME sign as the purchase (raw -125 after a
+  // -250 purchase). The raw chargedAmount is preserved; isRefund=true makes the
+  // row count as +|amount| income everywhere (flowClassification). Only valid
+  // on negative rows (DB CHECK in the migration). User/reconciliation-owned:
+  // never touched by ingestion (see scrapedTransactionWrite.ts).
+  isRefund Boolean @default(false)
+
+  // Scraper status ("pending" | "completed"; card #49, ADR-0025). Provider-
+  // owned: converges on every scrape. Null on rows ingested before it was
+  // persisted.
+  providerStatus String?
+  // Set when a pending row the provider stopped returning was retired
+  // (pendingRetirement.ts): the row is hidden with isCardSettlement=true and
+  // this stamp records why, so the step is auditable and reversible. Cleared
+  // (and the row un-hidden) if a later scrape returns the row again. Never
+  // part of the scrape upsert payload.
+  pendingRetiredAt DateTime?
+
+  @@index([date])
+  @@index([accountId])
+  @@index([flowMonth])
+  // Identity lookup in ingestion (accountId + txnIdentifier, then a ±3-day
+  // date window). Deliberately NOT unique: the identity is fuzzy (date
+  // window, raw vs normalized identifier forms) and legacy rows may already
+  // share an identifier, so a unique constraint would either be wrong or fail
+  // to apply. Duplicate-insert races are prevented by the run-wide
+  // IngestionLease instead (card #48, ADR-0021).
+  @@index([accountId, txnIdentifier])
+}
+
+// Run-wide ingestion lock (card #48, ADR-0021). At most one row per lock
+// name; a holder owns it until expiresAt, renewed by a heartbeat while the
+// run is alive. A crashed run's row simply expires. Timestamps are timestamptz
+// and only ever compared against the database clock (now()).
+model IngestionLease {
+  name       String   @id
+  holder     String
+  acquiredAt DateTime @db.Timestamptz(3)
+  expiresAt  DateTime @db.Timestamptz(3)
+}
+
+// Persisted dashboard chat (card #66, ADR-0027). One ChatMessage row is one
+// user question plus its answer; the server runs the model loop in the
+// background and the page polls. Deliberately NOT readable by the chat's
+// read-only role / SQL validator: the model never reads chat history via SQL
+// (the server replays a capped history itself).
+enum ChatMessageStatus {
+  pending
+  completed
+  failed
+}
+
+model ChatConversation {
+  id        String        @id @default(uuid())
+  // First question, whitespace-collapsed and truncated (chatConversation.ts).
+  title     String
+  createdAt DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime      @updatedAt @db.Timestamptz(3)
+  messages  ChatMessage[]
+
+  @@index([updatedAt])
+}
+
+model ChatMessage {
+  id             String            @id @default(uuid())
+  conversationId String
+  conversation   ChatConversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  // Client-generated; a refresh / double-submit with the same key returns
+  // this row instead of running the question again.
+  idempotencyKey String            @unique
+  question       String
+  // Household-member filter the question was asked under (null = household).
+  userId         String?
+  status         ChatMessageStatus @default(pending)
+  answer         String?
+  // ToolCallSummary[] shown under the answer (no raw rows).
+  toolCalls      Json?
+  // Curated failure code (chatFailureResponse codes + "interrupted"); never
+  // CLI stderr.
+  errorCode      String?
+  // Process instance that owns a pending run. A pending row owned by another
+  // (dead) instance is recovered as failed/interrupted.
+  runnerId       String?
+  attempts       Int               @default(1)
+  startedAt      DateTime?         @db.Timestamptz(3)
+  completedAt    DateTime?         @db.Timestamptz(3)
+  createdAt      DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime          @updatedAt @db.Timestamptz(3)
+
+  @@index([conversationId, createdAt])
+  @@index([status])
+}

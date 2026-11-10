@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Daily host sync worker for macOS.
+  1. Replace /path/to/finance-dashboard (3 places) with your clone's absolute path.
+  2. cp this file to ~/Library/LaunchAgents/finance-dashboard.worker.plist
+  3. launchctl load ~/Library/LaunchAgents/finance-dashboard.worker.plist
+  Credentials stay in .env; nothing secret belongs in this file.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>finance-dashboard.worker</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>/path/to/finance-dashboard/scripts/run-host-worker.sh</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>4</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/path/to/finance-dashboard/sync-cron.log</string>
+  <key>StandardErrorPath</key>
+  <string>/path/to/finance-dashboard/sync-cron.log</string>
+</dict>
+</plist>

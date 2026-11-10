@@ -1,0 +1,71 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Builds
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Databases & dumps
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+*.sql.gz
+pgdata/
+prisma/*.db
+# Raw SQL dumps/backups (contain BankCredential ciphertext, account numbers and
+# every transaction). Migrations are the only SQL that belongs in Git.
+db-dumps/
+backup-*.sql
+*.sql
+!prisma/migrations/**/*.sql
+!scripts/*.sql
+
+# Puppeteer / Chromium caches
+.cache/
+.puppeteer/
+.chromium/
+**/puppeteer_dev_profile*
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Test coverage
+coverage/
+
+# local docker secrets (encryption key files)
+secrets/
+
+# Kiro runtime prompt files (contain redacted transaction descriptions)
+.kiro/runtime/
+
+# Local RiseUp snapshots and comparison reports (personal financial data)
+data/riseup/
+
+# Local diagnostics output (may contain redacted provider captures)
+debug-screenshots/
+
+# Ad-hoc import/reconciliation reports (contain real transactions)
+*-report.json
+*-report.md
+/riseup-*-diff.*
+/riseup-*-reconciliation.*
