@@ -73,18 +73,18 @@ test('leaves an uncovered settlement countable (no card history for the cycle)',
 
 test('never marks Cal pending snapshots even when amounts coincide', () => {
   const matches = matchCoveredSettlements(
-    [settlement('s1', '2026-08-03T00:00:00Z', -6000.38, 'חיוב לכרטיס מכאל 3333')],
-    [cardTxn('cardX', 'visaCal', '2026-08-03T00:00:00Z', -6000.38)],
+    [settlement('s1', '2026-08-03T00:00:00Z', -6000, 'חיוב לכרטיס מכאל 3333')],
+    [cardTxn('cardX', 'visaCal', '2026-08-03T00:00:00Z', -6000)],
   );
   assert.deepEqual(matches, []);
 });
 
 test('marks the monthly Cal statement debit when a visaCal card cycle exists (real Discount shape)', () => {
   const matches = matchCoveredSettlements(
-    [settlement('s1', '2026-09-01T00:00:00Z', -12486.93, 'כ.א.ל חיוב')],
+    [settlement('s1', '2026-09-01T00:00:00Z', -12500, 'כ.א.ל חיוב')],
     [
       cardTxn('cal3333', 'visaCal', '2026-09-01T00:00:00Z', -12000),
-      cardTxn('cal3333', 'visaCal', '2026-09-01T00:00:00Z', -486.93),
+      cardTxn('cal3333', 'visaCal', '2026-09-01T00:00:00Z', -500),
     ],
   );
   assert.deepEqual(matches, [{ settlementId: 's1', cardAccountId: 'cal3333' }]);
@@ -93,8 +93,8 @@ test('marks the monthly Cal statement debit when a visaCal card cycle exists (re
 test('leaves Cal statement debits countable when no visaCal card account is scraped', () => {
   // Without card history there is nothing to double count against.
   const matches = matchCoveredSettlements(
-    [settlement('s1', '2026-09-01T00:00:00Z', -12486.93, 'כ.א.ל חיוב')],
-    [cardTxn('max1', 'max', '2026-09-01T00:00:00Z', -12486.93)],
+    [settlement('s1', '2026-09-01T00:00:00Z', -12500, 'כ.א.ל חיוב')],
+    [cardTxn('max1', 'max', '2026-09-01T00:00:00Z', -12500)],
   );
   assert.deepEqual(matches, []);
 });

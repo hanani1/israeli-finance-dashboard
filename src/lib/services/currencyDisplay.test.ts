@@ -39,15 +39,15 @@ test('EXAMPLE TRAVEL BV: secondary shows the original EUR amount', () => {
 });
 
 test('EXAMPLE TRAVEL BV: real DB shape (ILS settlement, USD original)', () => {
-  // Matches the actual scraped rows: charged −2541 ILS, original −826.89 USD.
+  // Shape of a scraped row: charged in ILS, original in USD.
   const { primary, secondary } = getDisplayAmounts({
-    chargedAmount: -2541,
+    chargedAmount: -2500,
     chargedCurrency: 'ILS',
-    originalAmount: -826.89,
+    originalAmount: -700,
     originalCurrency: 'USD',
   });
-  assert.deepEqual(primary, { amount: -2541, currency: 'ILS' });
-  assert.deepEqual(secondary, { amount: -826.89, currency: 'USD' });
+  assert.deepEqual(primary, { amount: -2500, currency: 'ILS' });
+  assert.deepEqual(secondary, { amount: -700, currency: 'USD' });
   assert.ok(!formatMoney(primary.amount, primary.currency).includes('$'));
 });
 

@@ -12,8 +12,8 @@ import { test } from 'node:test';
 import { inferIsracardChargedCurrency } from './isracardCurrency';
 
 test('EUR voucher with billingAmount == originalAmount is EUR-settled', () => {
-  // e.g. SEASIDE HOTEL LIMASSOL: 1585.80 EUR billed as 1585.80
-  assert.equal(inferIsracardChargedCurrency('EUR', 1585.8, 1585.8), 'EUR');
+  // e.g. a hotel abroad: 1500.00 EUR billed as 1500.00
+  assert.equal(inferIsracardChargedCurrency('EUR', 1500, 1500), 'EUR');
 });
 
 test('USD voucher with billingAmount == originalAmount is USD-settled', () => {
@@ -21,8 +21,8 @@ test('USD voucher with billingAmount == originalAmount is USD-settled', () => {
 });
 
 test('EUR voucher with converted billingAmount is ILS-settled', () => {
-  // e.g. SEASIDE HOTEL RESORTS: 7 EUR converted and billed as 24.89 ILS
-  assert.equal(inferIsracardChargedCurrency('EUR', 7, 24.89), 'ILS');
+  // e.g. 7 EUR converted and billed as 28.00 ILS
+  assert.equal(inferIsracardChargedCurrency('EUR', 7, 28), 'ILS');
 });
 
 test('ILS voucher is always ILS-settled, including alias spellings', () => {

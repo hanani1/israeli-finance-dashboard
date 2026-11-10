@@ -16,7 +16,7 @@ import {
 
 const src = (overrides: Partial<SimilarSource> = {}): SimilarSource => ({
   id: 'src',
-  description: 'סופר פארם רמת אביב 123',
+  description: 'סופר פארם מרכז העיר 123',
   chargedAmount: -50,
   categoryId: 1,
   ...overrides,
@@ -65,14 +65,14 @@ test('generic English transfer/card strings are detected as generic', () => {
 
 test('real merchant names are not generic', () => {
   assert.equal(isGenericDescription('סופר פארם'), false);
-  assert.equal(isGenericDescription('שופרסל דיל רמת אביב'), false);
+  assert.equal(isGenericDescription('שופרסל דיל מרכז העיר'), false);
   assert.equal(isGenericDescription('העברה אל: אלטשולר שחם'), false); // carries a merchant
 });
 
 // --- anchorToken ---
 
 test('anchorToken picks the longest significant token', () => {
-  assert.equal(anchorToken('סופר פארם רמת אביב'), 'סופר');
+  assert.equal(anchorToken('סופר פארם מרכז העיר'), 'סופר');
   assert.equal(anchorToken('העברה אל אלטשולר'), 'אלטשולר');
 });
 
@@ -91,7 +91,7 @@ test('identical description scores 1 with exactDescription reason', () => {
 });
 
 test('same merchant with different branch number scores as sameMerchant', () => {
-  const result = scoreSimilarity(src(), cand('סופר פארם רמת אביב 456'));
+  const result = scoreSimilarity(src(), cand('סופר פארם מרכז העיר 456'));
   assert.ok(result);
   assert.ok(result.reasons.includes('sameMerchant'));
   assert.ok(result.score >= 0.9 && result.score < 1);
@@ -143,7 +143,7 @@ test('same amount and same category add reasons and bounded bonuses', () => {
   const source = src({ chargedAmount: -49.9, categoryId: 7 });
   const result = scoreSimilarity(
     source,
-    cand('סופר פארם רמת אביב 456', { chargedAmount: -49.9, categoryId: 7 }),
+    cand('סופר פארם מרכז העיר 456', { chargedAmount: -49.9, categoryId: 7 }),
   );
   assert.ok(result);
   assert.ok(result.reasons.includes('similarAmount'));
@@ -153,7 +153,7 @@ test('same amount and same category add reasons and bounded bonuses', () => {
 
 test('uncategorized source (null category) gets no sameCategory reason', () => {
   const source = src({ categoryId: null });
-  const result = scoreSimilarity(source, cand('סופר פארם רמת אביב 456', { categoryId: null }));
+  const result = scoreSimilarity(source, cand('סופר פארם מרכז העיר 456', { categoryId: null }));
   assert.ok(result);
   assert.equal(result.reasons.includes('sameCategory'), false);
 });
@@ -191,7 +191,7 @@ test('clampPagination accepts in-range values', () => {
 test('rankSimilar orders by score then date desc and reports total/hasMore', () => {
   const source = src();
   const exact = cand(source.description, { date: new Date('2026-07-01T00:00:00Z') });
-  const merchant = cand('סופר פארם רמת אביב 999', { date: new Date('2026-08-10T00:00:00Z') });
+  const merchant = cand('סופר פארם מרכז העיר 999', { date: new Date('2026-08-10T00:00:00Z') });
   const newerExact = cand(source.description, { date: new Date('2026-08-20T00:00:00Z') });
   const noise = cand('קפה לדוגמה');
   const result = rankSimilar(source, [noise, merchant, exact, newerExact], {

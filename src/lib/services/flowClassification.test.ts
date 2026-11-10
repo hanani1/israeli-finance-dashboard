@@ -41,15 +41,15 @@ test('a negative INCOME-category row reduces income', () => {
 
 test('summarizeFlows nets the classified rows into income, expenses and net', () => {
   const summary = summarizeFlows([
-    { chargedAmount: 40472.04, group: CategoryGroup.INCOME, isRefund: false },
+    { chargedAmount: 20000.5, group: CategoryGroup.INCOME, isRefund: false },
     { chargedAmount: 28.95, group: null, isRefund: false },
     { chargedAmount: -100, group: null, isRefund: false },
-    { chargedAmount: -86110.4, group: CategoryGroup.VARIABLE_EXPENSE, isRefund: false },
+    { chargedAmount: -30000.25, group: CategoryGroup.VARIABLE_EXPENSE, isRefund: false },
   ]);
   assert.deepEqual(summary, {
-    income: 40472.04,
-    expenses: 86181.45,
-    net: -45709.41,
+    income: 20000.5,
+    expenses: 30071.3,
+    net: -10070.8,
   });
 });
 

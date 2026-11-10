@@ -221,7 +221,7 @@ export function scoreSimilarity(
     } else {
       // Conservative containment: every significant token of the shorter side
       // appears in the longer side (branch-name variants such as
-      // "סופר פארם" vs "סופר פארם רמת אביב"), with a substance requirement so
+      // "סופר פארם" vs "סופר פארם מרכז העיר"), with a substance requirement so
       // a single short token cannot pull in unrelated merchants.
       const [shorter, longer] =
         sourceTokens.length <= candidateTokens.length

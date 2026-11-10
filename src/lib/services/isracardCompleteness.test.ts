@@ -6,7 +6,7 @@ import { isracardRawDropReason } from './isracardCompleteness';
 
 test('isracardRawDropReason: billing-total summary rows are dropped', () => {
   assert.equal(
-    isracardRawDropReason({ dealSumType: '1', voucherNumberRatz: '000000000', fullSupplierNameHeb: 'סך חיוב בש"ח: 17255.61' }),
+    isracardRawDropReason({ dealSumType: '1', voucherNumberRatz: '000000000', fullSupplierNameHeb: 'סך חיוב בש"ח: 1234.56' }),
     'dealSumType=1',
   );
 });
